@@ -10,6 +10,8 @@ let loadingResolution;
 let spineData;
 
 let customScale = 0.8;
+let positionX = 0;
+let positionY = 0;
 let targetFps = 60;
 let bgmfile = './assets/audio/Rewind Again.ogg';
 let bgmvolume = 0;
@@ -38,7 +40,17 @@ const MAX_RENDER_SCALE = 2;
 const MAX_RENDER_PIXELS = 5120 * 2880;
 
 let currentTracks = []; // 跟踪当前播放的音频
-window.selectedLanguage = 'Japanese'; // 全局语言变量（挂载到window对象）
+let interfaceLanguage = 'default';
+let steamLanguage = '';
+let subtitleLanguagePreference = 'auto';
+window.selectedLanguage = 'English';
+const subtitleLocales = {
+	English: 'en',
+	Chinese: 'zh-Hans',
+	TraditionalChinese: 'zh-Hant',
+	Japanese: 'ja',
+	Korean: 'ko'
+};
 let isVoicelinePlaying = false;
 
 const CHARACTER = 'CH0340';
@@ -58,6 +70,14 @@ const AUDIO_DETAIL = [
         Chinese: [
             "真是不可思议呢。在这座禁止外人进入的花园里——",
             "我竟然就这样读着前几天还被禁止的戏剧剧本。"
+        ],
+        TraditionalChinese: [
+            "真是不可思議呢。在這座禁止外人進入的花園裡——",
+            "我竟然就這樣讀著前幾天還被禁止的戲劇劇本。"
+        ],
+        Korean: [
+            "참 신기하네요. 외부인의 출입을 금지한 정원에서—",
+            "며칠 전까지만 해도 금지되었던 연극 대본을 이렇게 들여다보고 있다니요."
         ]
     },
     {
@@ -72,12 +92,26 @@ const AUDIO_DETAIL = [
         Chinese: [
             "这并没有违反校规。可是，不知为何……总觉得自己好像在做坏事。",
             "这阵心跳加速……就是所谓的背德感吗？"
+        ],
+        TraditionalChinese: [
+            "這並沒有違反校規。可是，不知為何……總覺得自己好像在做壞事。",
+            "這陣心跳加速……就是所謂的背德感嗎？"
+        ],
+        Korean: [
+            "교칙을 어기는 건 아닙니다. 그런데 왠지…… 나쁜 짓을 하는 기분이 드네요.",
+            "이렇게 가슴이 뛰는 건…… 금기를 어기는 기분 때문일까요?"
         ]
     },
     {
         Japanese: ["ふふ……わたくし——悪い子になってしまったのかもしれません。"],
         English: ["Hehe… Perhaps I've turned into a bad girl."],
-        Chinese: ["呵呵……我或许已经变成坏孩子了呢。"]
+        Chinese: ["呵呵……我或许已经变成坏孩子了呢。"],
+        TraditionalChinese: [
+        	"呵呵……我或許已經變成壞孩子了呢。"
+        ],
+        Korean: [
+        	"후후…… 저, 나쁜 아이가 되어 버렸는지도 모르겠네요."
+        ]
     },
     {
         Japanese: [
@@ -94,17 +128,41 @@ const AUDIO_DETAIL = [
             "……是啊。我原本就不是个好孩子。",
             "正如美丽的玫瑰也会带刺……",
             "我也有自己的刺哦。"
+        ],
+        TraditionalChinese: [
+            "……是啊。我原本就不是個好孩子。",
+            "正如美麗的玫瑰也會帶刺……",
+            "我也有自己的刺哦。"
+        ],
+        Korean: [
+            "……네. 애초에 저는 착한 아이가 아니니까요.",
+            "아름다운 장미에 가시가 있듯이…….",
+            "저에게도 가시가 있답니다."
         ]
     },
     {
         Japanese: ["ええと……今聞いたことは——", "わたくしと先生だけの秘密……ですよ？"],
         English: ["Um… What you just heard—", "that's a secret between you and me, right, Sensei?"],
-        Chinese: ["那个……您刚才听到的事——", "是我和老师两个人的秘密……对吧？"]
+        Chinese: ["那个……您刚才听到的事——", "是我和老师两个人的秘密……对吧？"],
+        TraditionalChinese: [
+        	"那個……您剛才聽到的事——",
+        	"是我和老師兩個人的秘密……對吧？"
+        ],
+        Korean: [
+        	"그러니까…… 방금 들으신 건—",
+        	"선생님과 저만의 비밀……이에요, 아시죠?"
+        ]
     },
     {
         Japanese: ["秘密の花園で交わした言葉、ですからね？"],
         English: ["After all, those words were spoken in a secret garden, weren't they?"],
-        Chinese: ["毕竟，那是在秘密花园里说的话嘛，对吧？"]
+        Chinese: ["毕竟，那是在秘密花园里说的话嘛，对吧？"],
+        TraditionalChinese: [
+        	"畢竟，那是在秘密花園裡說的話嘛，對吧？"
+        ],
+        Korean: [
+        	"비밀의 정원에서 나눈 이야기니까요."
+        ]
     }
 ];
 
@@ -312,7 +370,8 @@ function drawHitboxes() {
 		n = (n / transpose) - (d[side].length / (transpose * 2));
 		n = n * customScale + (d[side].length / (transpose * 2));
 		n = (d[side].length / (transpose * 2)) - n;
-		return d[side].mid - n;
+		const offset = side === 'x' ? canvas.width * positionX : canvas.height * positionY;
+		return d[side].mid - n + offset;
 	}
 
 	for (const key in HITBOX) {
@@ -403,12 +462,44 @@ function setMouse(event) {
 		ax = canvas.width - ax;
 	}
 
-	return { x: ax, y: ay }
+	return { x: ax - canvas.width * positionX, y: ay - canvas.height * positionY };
+}
+
+function updateSubtitleLanguage() {
+	let language = subtitleLanguagePreference;
+	if (language === 'auto') {
+		const locale = interfaceLanguage === 'default' ? steamLanguage : interfaceLanguage;
+		const [primary, region] = locale.split(/[-_]/);
+		if (primary === 'tchinese' || (primary === 'zh' && ['cht', 'hant', 'tw', 'hk', 'mo'].includes(region))) {
+			language = 'TraditionalChinese';
+		} else if (primary === 'schinese' || primary === 'zh') {
+			language = 'Chinese';
+		} else if (primary === 'ja' || primary === 'japanese') {
+			language = 'Japanese';
+		} else if (primary === 'ko' || primary === 'korean' || primary === 'koreana') {
+			language = 'Korean';
+		} else {
+			language = 'English';
+		}
+	}
+
+	if (language === window.selectedLanguage) return;
+	window.selectedLanguage = language;
+	textbox.lang = subtitleLocales[language];
+	showVoicelineSubtitle(currentTracks.at(-1));
 }
 
 function init() {
 	// Wallpaper Engine settings
 	window.wallpaperPropertyListener = {
+		applyGeneralProperties: (props) => {
+			const language = props.language?.value ?? props.language;
+			const steamLocale = props.steamlanguage?.value ?? props.steamlanguage;
+			if (typeof language !== 'string' && typeof steamLocale !== 'string') return;
+			if (typeof language === 'string') interfaceLanguage = language.toLowerCase();
+			if (typeof steamLocale === 'string') steamLanguage = steamLocale.toLowerCase();
+			updateSubtitleLanguage();
+		},
 		applyUserProperties: (props) => {
 			if (props.schemecolor) {
 				bufferColor = props.schemecolor.value.split(" ");
@@ -417,8 +508,16 @@ function init() {
 			if (props.scale) {
 				customScale = props.scale.value;
 				document.documentElement.style.setProperty('--wallpaper-scale', customScale);
-				resize();
 			}
+			if (props.positionx) {
+				positionX = props.positionx.value / 100;
+				document.documentElement.style.setProperty('--wallpaper-position-x', props.positionx.value + 'vw');
+			}
+			if (props.positiony) {
+				positionY = props.positiony.value / 100;
+				document.documentElement.style.setProperty('--wallpaper-position-y', props.positiony.value + 'vh');
+			}
+			if (props.scale || props.positionx || props.positiony) resize();
 			if (props.targetfps) targetFps = props.targetfps.value;
 
 			if (props.introanimation) introAnimation = props.introanimation.value;
@@ -460,12 +559,17 @@ function init() {
 
 			// 监听模型分辨率设置
 			if (props.modelresolution) modelResolution = props.modelresolution.value;
-			if (assetManager && typeof introAnimation !== 'undefined' && !modelFrame && loadingResolution !== modelResolution) {
+			if (assetManager && typeof introAnimation !== 'undefined' && !modelFrame &&
+				(props.modelresolution || loadingResolution !== modelResolution)) {
 				reloadModel();
 			}
 
-			if (props.dialoglanguage) window.selectedLanguage = props.dialoglanguage.value;
-			if (props.dialoglanguage || props.showdialog) {
+			if (props.dialoglanguage) {
+				const language = props.dialoglanguage.value;
+				subtitleLanguagePreference = Object.hasOwn(subtitleLocales, language) ? language : 'auto';
+				updateSubtitleLanguage();
+			}
+			if (props.showdialog) {
 				showVoicelineSubtitle(currentTracks[currentTracks.length - 1]);
 			}
 
@@ -489,6 +593,7 @@ function init() {
 	};
 
 	textbox = document.getElementById('textbox');
+	textbox.lang = subtitleLocales[window.selectedLanguage];
 
 	canvas = document.getElementById('canvas');
 	canvas.addEventListener('mouseleave', releaseMouseOnExit);
@@ -799,7 +904,7 @@ function resize() {
 		transpose = 1600 / canvas.height;
 	}
 
-	mvp.ortho2d(centerX - width / 2, centerY - height / 2, width, height);
+	mvp.ortho2d(centerX - width / 2 - positionX * width, centerY - height / 2 + positionY * height, width, height);
 	gl.viewport(0, 0, canvas.width, canvas.height);
 }
 
