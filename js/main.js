@@ -49,18 +49,19 @@ const subtitleLocales = {
 	Chinese: 'zh-Hans',
 	TraditionalChinese: 'zh-Hant',
 	Japanese: 'ja',
-	Korean: 'ko'
+	Korean: 'ko',
+	Thai: 'th'
 };
 let isVoicelinePlaying = false;
 
 const CHARACTER = 'CH0340';
 let modelResolution = '8k';
-// Memorial lobby transcription: https://bluearchive.wiki/wiki/Urara/audio
+// Japanese memorial lobby transcription: Kivo Wiki, via StuArchive (https://raw.githubusercontent.com/QuetzalSidera/StuArchive/main/data/students/649.json).
 // Subtitle entries follow the Talk events in each animation.
 const AUDIO_DETAIL = [
     {
         Japanese: [
-            "不思議なものですね。外部の立ち入りを禁じている花園で——",
+            "不思議なものですね。外部の立ち入りを禁じている花園で――",
             "つい先日まで禁じられていた、演劇の台本をこうして眺めているだなんて。"
         ],
         English: [
@@ -78,7 +79,8 @@ const AUDIO_DETAIL = [
         Korean: [
             "참 신기하네요. 외부인의 출입을 금지한 정원에서—",
             "며칠 전까지만 해도 금지되었던 연극 대본을 이렇게 들여다보고 있다니요."
-        ]
+        ],
+        Thai: ["น่าแปลกจังเลยนะคะ ในสวนที่ห้ามคนนอกเข้ามาแบบนี้—","ดิฉันกลับได้นั่งอ่านบทละครที่เพิ่งถูกห้ามไปจนถึงเมื่อไม่กี่วันก่อน"]
     },
     {
         Japanese: [
@@ -100,10 +102,11 @@ const AUDIO_DETAIL = [
         Korean: [
             "교칙을 어기는 건 아닙니다. 그런데 왠지…… 나쁜 짓을 하는 기분이 드네요.",
             "이렇게 가슴이 뛰는 건…… 금기를 어기는 기분 때문일까요?"
-        ]
+        ],
+        Thai: ["ก็ไม่ได้ทำผิดกฎโรงเรียนหรอกค่ะ แต่ไม่รู้ทำไม... ถึงรู้สึกเหมือนกำลังทำอะไรไม่ดีอยู่เลย","หัวใจที่เต้นแรงแบบนี้... เป็นความตื่นเต้นจากการทำเรื่องต้องห้ามหรือเปล่านะคะ?"]
     },
     {
-        Japanese: ["ふふ……わたくし——悪い子になってしまったのかもしれません。"],
+        Japanese: ["ふふ……わたくし――悪い子になってしまったのかもしれません。"],
         English: ["Hehe… Perhaps I've turned into a bad girl."],
         Chinese: ["呵呵……我或许已经变成坏孩子了呢。"],
         TraditionalChinese: [
@@ -111,7 +114,8 @@ const AUDIO_DETAIL = [
         ],
         Korean: [
         	"후후…… 저, 나쁜 아이가 되어 버렸는지도 모르겠네요."
-        ]
+        ],
+        Thai: ["ฮึฮึ... ดิฉันอาจจะกลายเป็นเด็กไม่ดีไปแล้วก็ได้ค่ะ"]
     },
     {
         Japanese: [
@@ -138,10 +142,11 @@ const AUDIO_DETAIL = [
             "……네. 애초에 저는 착한 아이가 아니니까요.",
             "아름다운 장미에 가시가 있듯이…….",
             "저에게도 가시가 있답니다."
-        ]
+        ],
+        Thai: ["...ใช่ค่ะ จริง ๆ แล้วดิฉันก็ไม่ใช่เด็กดีมาตั้งแต่แรก","เหมือนกุหลาบงามที่มีหนาม...","ดิฉันเองก็มีหนามเหมือนกันค่ะ"]
     },
     {
-        Japanese: ["ええと……今聞いたことは——", "わたくしと先生だけの秘密……ですよ？"],
+        Japanese: ["ええと……今聞いたことは――", "わたくしと先生だけの秘密……ですよ？"],
         English: ["Um… What you just heard—", "that's a secret between you and me, right, Sensei?"],
         Chinese: ["那个……您刚才听到的事——", "是我和老师两个人的秘密……对吧？"],
         TraditionalChinese: [
@@ -151,7 +156,8 @@ const AUDIO_DETAIL = [
         Korean: [
         	"그러니까…… 방금 들으신 건—",
         	"선생님과 저만의 비밀……이에요, 아시죠?"
-        ]
+        ],
+        Thai: ["เอ่อ... เรื่องที่คุณครูเพิ่งได้ยินเมื่อกี้—","ให้เป็นความลับระหว่างคุณครูกับดิฉันสองคน... นะคะ?"]
     },
     {
         Japanese: ["秘密の花園で交わした言葉、ですからね？"],
@@ -162,7 +168,8 @@ const AUDIO_DETAIL = [
         ],
         Korean: [
         	"비밀의 정원에서 나눈 이야기니까요."
-        ]
+        ],
+        Thai: ["เพราะเป็นคำพูดที่เราคุยกันในสวนลับนี่นา จริงไหมคะ?"]
     }
 ];
 
@@ -253,7 +260,7 @@ function releaseMouseOnExit() {
 }
 
 function showVoicelineSubtitle(clip) {
-	const text = clip?.dialog[window.selectedLanguage]?.[clip.index] ?? "";
+	const text = getSubtitleText(clip?.dialog, window.selectedLanguage, clip?.index);
 	textbox.textContent = text;
 	textbox.style.opacity = dialogBox && text ? 1 : 0;
 }
@@ -465,6 +472,16 @@ function setMouse(event) {
 	return { x: ax - canvas.width * positionX, y: ay - canvas.height * positionY };
 }
 
+function getSubtitleText(dialog, language, index) {
+	let text = dialog?.[language]?.[index];
+	if (text == null && language === 'Thai') {
+		language = 'English';
+		text = dialog?.[language]?.[index];
+	}
+	textbox.lang = subtitleLocales[language];
+	return text ?? "";
+}
+
 function updateSubtitleLanguage() {
 	let language = subtitleLanguagePreference;
 	if (language === 'auto') {
@@ -478,6 +495,8 @@ function updateSubtitleLanguage() {
 			language = 'Japanese';
 		} else if (primary === 'ko' || primary === 'korean' || primary === 'koreana') {
 			language = 'Korean';
+		} else if (primary === 'th' || primary === 'thai') {
+			language = 'Thai';
 		} else {
 			language = 'English';
 		}
